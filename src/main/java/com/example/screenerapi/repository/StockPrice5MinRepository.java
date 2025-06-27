@@ -18,5 +18,6 @@ public interface StockPrice5MinRepository extends JpaRepository<StockPrice5Min, 
     Optional<StockPrice5Min> findByTimeInMillis(Long timeInMillis);
 
     Optional<StockPrice5Min> findByTimeInMillisAndIsin(Long timeInMillis, String isin);
+    Optional <StockPrice5Min> findByIsin (String isin);
 
 }

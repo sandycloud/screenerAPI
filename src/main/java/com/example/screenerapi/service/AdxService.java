@@ -14,6 +14,7 @@ public class AdxService {
         public double minusDI;
         public double adx;
         public long timeInMillis;
+        public double dxValue;
     }
 
     public List<AdxResult> calculateAdx(List<StockPrice5Min> candles, int period) {
@@ -72,9 +73,13 @@ public class AdxService {
         result.add(sum / period);
         for (int i = period; i < values.size(); i++) {
             double prev = result.get(result.size() - 1);
-            double val = (prev * (period - 1) + values.get(i)) / period;
+            double val = ((prev * (period - 1)) + values.get(i)) / period;
             result.add(val);
         }
         return result;
+    }
+
+    public static void main(String args[]){
+
     }
 }

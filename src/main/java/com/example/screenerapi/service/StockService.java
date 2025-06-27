@@ -34,7 +34,12 @@ public class StockService {
     private final WebClient webClient = WebClient.builder().build();
     org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StockService.class);
 
-    public void fetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
+    static String tagCandles = "candles";
+    static final String prevFetchInputTime = "prevTimestamp";
+    static final String metaTag = "meta";
+    static final String dataTag ="data";
+
+    public void firstFetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
                        Long fromTime, String externalApiUrl) {
         //fetchCandleData();
         String url = externalApiUrl + "?instrumentKey=NSE_EQ%7C" + isin + "&interval=I" +
@@ -75,11 +80,20 @@ public class StockService {
         String responseBody = resp1.bodyToMono(String.class)
                 .block();*/
 
-        JSONObject respJson = fetchJsonDataUsingCurl(externalApiUrl,isin, candleTimeFrame, fromTime, "50");
+        JSONObject respJson = fetchJsonDataUsingCurl(externalApiUrl,isin, candleTimeFrame, fromTime, "500");
         if (respJson != null) {
             log.info("Response body for ISIN {}: {}", isin, respJson.length());
             //JSONObject json = new JSONObject(responseBody);
             processResponse(respJson, candleTimeFrame, stockName, isin);
+
+            //fetch previous 500 lines
+            JSONObject data = respJson.optJSONObject(dataTag);
+            JSONObject objMeta= data.optJSONObject(metaTag);
+            long prevTime = objMeta.optLongObject(prevFetchInputTime);
+            log.info("previous timevalue :{}", prevTime);
+            respJson = fetchJsonDataUsingCurl(externalApiUrl,isin, candleTimeFrame, prevTime, "500");
+            processResponse(respJson,candleTimeFrame,stockName, isin);
+
             /*JSONObject data = json.optJSONObject("data");
             log.info("Fetched data for ISIN: {}, data:{}" ,isin, data != null ? data.opt("meta") : null);
             log.info("hmmmm,,, candles data {}", data != null ? data.toString() : "null");
@@ -103,15 +117,18 @@ public class StockService {
                 }
                 repository.saveAll(entities);
             }*/
+            //fetch previous 500 lines
+            //get the prev time from response
+
         }
     }
     private void processResponse(JSONObject inputJson, String timeframe, String stockName, String isin){
-        JSONObject data = inputJson.optJSONObject("data");
+        JSONObject data = inputJson.optJSONObject(dataTag);
         //log.info("Fetched data for ISIN: {}, data:{}" ,isin, data != null ? data.opt("meta") : null);
         log.info("hmmmm,,, candles data {}", data != null ? data.toString() : "null");
         if (data != null && data.has("candles")) {
             //log.info("candles data for stock: {}, ISIN:" ,isin);
-            JSONArray candles = data.getJSONArray("candles");
+            JSONArray candles = data.getJSONArray(tagCandles);
             List<StockPrice5Min> entities = null;
             if (timeframe.equals("5")) {
                 entities = new ArrayList<>();

@@ -26,8 +26,9 @@ public class StockController {
 
     org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StockController.class);
 
-    @PostMapping("/fetch-and-store")
-    public ResponseEntity<?> fetchAndStore(@RequestBody Map<String, Object> req) {
+    @PostMapping("/firstfetch-and-store")
+    //first time fetch and populate th stock data
+    public ResponseEntity<?> firstFetchAndStore(@RequestBody Map<String, Object> req) {
         String stockName = (String) req.get("stockName");
         String isin = (String) req.get("isin");
         String candleTimeFrame = (String) req.get("candleTimeFrame");
@@ -35,7 +36,7 @@ public class StockController {
         //create a log entry for the ISIN value 
         
         log.info("isin value: {}, url value :{}", isin, externalApiUrl);
-        stockService.fetchAndStoreCandles(stockName, isin, candleTimeFrame, fromTime, externalApiUrl);
+        stockService.firstFetchAndStoreCandles(stockName, isin, candleTimeFrame, fromTime, externalApiUrl);
         return ResponseEntity.ok(Collections.singletonMap("status", "success"));
     }
 

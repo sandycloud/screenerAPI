@@ -27,17 +27,33 @@ public class StockPrice5Min {
     @Column(nullable = true)
     private String datetimestamp;
 
-    @Column(precision = 5)
+    @Column(precision = 2)
     private Double adxValue;
 
-    @Column( precision = 5)
+    @Column( precision = 2)
     private Double plusDIValue;
 
-    @Column( precision = 5)
+    @Column( precision = 2)
     private Double minusDIValue;
 
     @Column(nullable = true)
     private Long averageVolume;
+
+    @Column( precision = 2)
+    private Double dxValue;
+
+    public StockPrice5Min(Long id, String isin, Long timeInMillis, Double high, Double low, Double close) {
+        this.id = id;
+        this.isin = isin;
+        this.timeInMillis = timeInMillis;
+        this.high = high;
+        this.low = low;
+        this.close = close;
+    }
+
+    public StockPrice5Min() {
+        ;
+    }
 
     // Getters and setters
     public Long getId() { return id; }
@@ -69,4 +85,12 @@ public class StockPrice5Min {
     public void setMinusDIValue(Double minusDIValue) { this.minusDIValue = minusDIValue; }
     public Long getAverageVolume() { return averageVolume; }
     public void setAverageVolume(Long averageVolume) { this.averageVolume = averageVolume; }
+
+    public Double getDxValue() {
+        return dxValue;
+    }
+    public void setDxValue(Double dxValue) {
+        this.dxValue = dxValue;
+    }
+
 }
