@@ -14,6 +14,8 @@ import okhttp3.Response;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.example.screenerapi.entity.StockAdxCriteriaDto;
+import java.util.Collections;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -28,6 +30,9 @@ import java.util.Map;
 
 @Service
 public class StockService {
+    // Application-wide storage for fetched ADX criteria stocks
+    private final List<StockAdxCriteriaDto> adxCriteriaStocks = Collections.synchronizedList(new ArrayList<>());
+
     @Autowired
     private StockPrice5MinRepository repository;
 
@@ -298,4 +303,71 @@ public class StockService {
         }
     }
 
+    /**
+     * Calls external API for ADX criteria stocks, parses and stores the result application-wide.
+     * @return The latest List of StockAdxCriteriaDto
+     */
+    public List<StockAdxCriteriaDto> fetchAdxCriteriaStocks() {
+        String url = "https://scanx-analytics.dhan.co/customscan/fetchdt";
+        // Request JSON as described by you
+        String requestBody = "{" +
+                "\"data\":{\"sort\":\"PPerchange\",\"sorder\":\"asc\",\"count\":30," +
+                "\"params\":[" +
+                "{\"field\":\"Exch\",\"op\":\"\",\"val\":\"NSE\"}," +
+                "{\"field\":\"FnoFlag\",\"op\":\"\",\"val\":\"1\"}," +
+                "{\"field\":\"Min5ADX14CurrentCandle\",\"field2\":\"Min5ADX14PrevCandle\",\"op\":\"gt\"}," +
+                "{\"field\":\"Min5ADX14CurrentCandle\",\"op\":\"gte\",\"val\":\"24.2\"}," +
+                "{\"field\":\"Volume\",\"op\":\"gte\",\"val\":\"40000\"}," +
+                "{\"field\":\"Ltp\",\"field2\":\"BcClose\",\"op\":\"lt\"}," +
+                "{\"field\":\"OgInst\",\"op\":\"\",\"val\":\"ES\"}," +
+                "{\"field\":\"OgInst\",\"op\":\"\",\"val\":\"ES\"}," +
+                "{\"field\":\"Volume\",\"op\":\"gte\",\"val\":\"0\"}" +
+                "]," +
+                "\"logic_op\":\"AND\"," +
+                "\"fields\":[\"DispSym\",\"Ltp\",\"Pchange\",\"PPerchange\",\"Volume\",\"Pe\",\"Mcap\",\"Min5ADX14CurrentCandle\",\"Min5ADX14PrevCandle\",\"BcClose\",\"Sym\",\"Isin\"]," +
+                "\"pgno\":1}" +
+                "}";
+
+        OkHttpClient client = new OkHttpClient();
+        MediaType mediaType = MediaType.parse("application/json");
+        RequestBody body = RequestBody.create(mediaType, requestBody);
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        List<StockAdxCriteriaDto> parsedStockList = new ArrayList<>();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.body() != null) {
+                String respStr = response.body().string();
+                JSONObject root = new JSONObject(respStr);
+                JSONArray dataArr = root.optJSONArray("data");
+                if (dataArr != null) {
+                    for (int i = 0; i < dataArr.length(); i++) {
+                        JSONObject stock = dataArr.getJSONObject(i);
+                        String isin = stock.optString("Isin", "");
+                        String sym = stock.optString("Sym", "");
+                        double pPerchange = stock.optDouble("PPerchange", 0.0);
+                        double pchange = stock.optDouble("Pchange", 0.0);
+                        parsedStockList.add(new StockAdxCriteriaDto(isin, sym, pPerchange, pchange));
+                    }
+                }
+                // update application-wide list
+                synchronized (adxCriteriaStocks) {
+                    adxCriteriaStocks.clear();
+                    adxCriteriaStocks.addAll(parsedStockList);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error fetching ADX criteria stocks: " + e.getMessage(), e);
+        }
+        return parsedStockList;
+    }
+
+    public List<StockAdxCriteriaDto> getAdxCriteriaStocks() {
+        // return a defensive copy to prevent accidental modification
+        synchronized (adxCriteriaStocks) {
+            return new ArrayList<>(adxCriteriaStocks);
+        }
+    }
 }
