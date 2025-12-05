@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import com.example.screenerapi.entity.StockAdxCriteriaDto;
 import org.springframework.beans.factory.annotation.Value;
 
 @RestController
@@ -38,6 +39,11 @@ public class StockController {
         log.info("isin value: {}, url value :{}", isin, externalApiUrl);
         stockService.firstFetchAndStoreCandles(stockName, isin, candleTimeFrame, fromTime, externalApiUrl);
         return ResponseEntity.ok(Collections.singletonMap("status", "success"));
+    }
+
+    @GetMapping("/adx-criteria-stocks")
+    public ResponseEntity<List<StockAdxCriteriaDto>> getAdxCriteriaStocks() {
+        return ResponseEntity.ok(stockService.fetchAdxCriteriaStocks());
     }
 
     @GetMapping("/adx")
