@@ -2,3 +2,7 @@ target/
 stockdata.db
 *.db
 .vscode/*
+./compile.sh
+./run.sh
+./*.sh
+.idea/vcs.xml

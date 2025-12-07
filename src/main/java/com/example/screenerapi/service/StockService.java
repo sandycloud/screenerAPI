@@ -4,6 +4,7 @@ import com.example.screenerapi.entity.StockPrice5Min;
 import com.example.screenerapi.repository.StockPrice5MinRepository;
 import com.example.screenerapi.util.StockPriceUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import okhttp3.OkHttpClient;
@@ -36,6 +37,9 @@ public class StockService {
     @Autowired
     private StockPrice5MinRepository repository;
 
+    @Value("${adx.api.request.body}")
+    private String adxApiRequestBody;
+
     private final WebClient webClient = WebClient.builder().build();
     org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StockService.class);
 
@@ -43,6 +47,7 @@ public class StockService {
     static final String prevFetchInputTime = "prevTimestamp";
     static final String metaTag = "meta";
     static final String dataTag ="data";
+    static final String iSinString = "Isin";
 
     public void firstFetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
                        Long fromTime, String externalApiUrl) {
@@ -309,43 +314,32 @@ public class StockService {
      */
     public List<StockAdxCriteriaDto> fetchAdxCriteriaStocks() {
         String url = "https://scanx-analytics.dhan.co/customscan/fetchdt";
-        // Request JSON as described by you
-        String requestBody = "{" +
-                "\"data\":{\"sort\":\"PPerchange\",\"sorder\":\"asc\",\"count\":30," +
-                "\"params\":[" +
-                "{\"field\":\"Exch\",\"op\":\"\",\"val\":\"NSE\"}," +
-                "{\"field\":\"FnoFlag\",\"op\":\"\",\"val\":\"1\"}," +
-                "{\"field\":\"Min5ADX14CurrentCandle\",\"field2\":\"Min5ADX14PrevCandle\",\"op\":\"gt\"}," +
-                "{\"field\":\"Min5ADX14CurrentCandle\",\"op\":\"gte\",\"val\":\"24.2\"}," +
-                "{\"field\":\"Volume\",\"op\":\"gte\",\"val\":\"40000\"}," +
-                "{\"field\":\"Ltp\",\"field2\":\"BcClose\",\"op\":\"lt\"}," +
-                "{\"field\":\"OgInst\",\"op\":\"\",\"val\":\"ES\"}," +
-                "{\"field\":\"OgInst\",\"op\":\"\",\"val\":\"ES\"}," +
-                "{\"field\":\"Volume\",\"op\":\"gte\",\"val\":\"0\"}" +
-                "]," +
-                "\"logic_op\":\"AND\"," +
-                "\"fields\":[\"DispSym\",\"Ltp\",\"Pchange\",\"PPerchange\",\"Volume\",\"Pe\",\"Mcap\",\"Min5ADX14CurrentCandle\",\"Min5ADX14PrevCandle\",\"BcClose\",\"Sym\",\"Isin\"]," +
-                "\"pgno\":1}" +
-                "}";
+        // Request JSON loaded from application.properties
+        String requestBody = adxApiRequestBody;
 
         OkHttpClient client = new OkHttpClient();
         MediaType mediaType = MediaType.parse("application/json");
-        RequestBody body = RequestBody.create(mediaType, requestBody);
+        //RequestBody body = RequestBody.create(mediaType, requestBody);
+        RequestBody body = RequestBody.create(requestBody, mediaType);
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
                 .build();
 
         List<StockAdxCriteriaDto> parsedStockList = new ArrayList<>();
+        log.info("before external API call");
         try (Response response = client.newCall(request).execute()) {
+            log.info("call ADX uptrend API, response: {}", response.toString());
             if (response.body() != null) {
                 String respStr = response.body().string();
                 JSONObject root = new JSONObject(respStr);
-                JSONArray dataArr = root.optJSONArray("data");
+                JSONArray dataArr = root.optJSONArray(dataTag);
+                log.info("ADX downtrend API, response no. of stocks: {}", dataArr.length());
                 if (dataArr != null) {
                     for (int i = 0; i < dataArr.length(); i++) {
                         JSONObject stock = dataArr.getJSONObject(i);
-                        String isin = stock.optString("Isin", "");
+                        String isin = stock.optString(iSinString, "");
+                        //TODO: add constants for string literals
                         String sym = stock.optString("Sym", "");
                         double pPerchange = stock.optDouble("PPerchange", 0.0);
                         double pchange = stock.optDouble("Pchange", 0.0);

@@ -17,6 +17,9 @@ public class StockInfo {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = true)
+    private String timeAtLastDataFetch;
+
     // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -24,4 +27,8 @@ public class StockInfo {
     public void setIsin(String isin) { this.isin = isin; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public String getTimeAtLastDataFetch () { return timeAtLastDataFetch;}
+    public void setTimeAtLastDataFetch (String timeAtLastDataFetch) { this.timeAtLastDataFetch = timeAtLastDataFetch;}
+
 }
