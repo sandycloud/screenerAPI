@@ -42,8 +42,10 @@ public class StockController {
     }
 
     @GetMapping("/adx-criteria-stocks")
-    public ResponseEntity<List<StockAdxCriteriaDto>> getAdxCriteriaStocks() {
-        return ResponseEntity.ok(stockService.fetchAdxCriteriaStocks());
+    public ResponseEntity<List<StockAdxCriteriaDto>> getAdxCriteriaStocks(
+            @RequestParam String timeframe,
+            @RequestParam String trend) {
+        return ResponseEntity.ok(stockService.fetchAdxCriteriaStocks(timeframe, trend));
     }
 
     @GetMapping("/adx")

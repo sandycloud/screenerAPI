@@ -1,0 +1,1 @@
+java -jar target/screenerAPI-0.0.1-SNAPSHOT.jar
