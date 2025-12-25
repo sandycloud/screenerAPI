@@ -3,7 +3,7 @@ package com.example.screenerapi.entity;
 public class StockAdxCriteriaDto {
     private String isin;
     private String sym;
-    private double pPerchange;
+    private double prcPerChange;
     private double pchange;
     private Long volume;
     private Long averageVolume;
@@ -12,10 +12,10 @@ public class StockAdxCriteriaDto {
     public StockAdxCriteriaDto() {}
 
     // Parameterized constructor
-    public StockAdxCriteriaDto(String isin, String sym, double pPerchange, double pchange, Long volume, Long averageVolume) {
+    public StockAdxCriteriaDto(String isin, String sym, double prcPerChange, double pchange, Long volume, Long averageVolume) {
         this.isin = isin;
         this.sym = sym;
-        this.pPerchange = pPerchange;
+        this.prcPerChange = prcPerChange;
         this.pchange = pchange;
         this.volume = volume;
         this.averageVolume = averageVolume;
@@ -35,11 +35,11 @@ public class StockAdxCriteriaDto {
         this.sym = sym;
     }
 
-    public double getPPerchange() {
-        return pPerchange;
+    public double getPrcPerChange() {
+        return prcPerChange;
     }
-    public void setPPerchange(double pPerchange) {
-        this.pPerchange = pPerchange;
+    public void setPrcPerChange(double prcPerChange) {
+        this.prcPerChange = prcPerChange;
     }
 
     public double getPchange() {

@@ -64,11 +64,13 @@ public class FilterStocks {
                         String isin = stock.optString(iSinString, "");
                         //TODO: add constants for string literals
                         String sym = stock.optString("Sym", "");
-                        double pPerchange = stock.optDouble("PPerchange", 0.0);
+                            double prcPerChange = stock.optDouble("PPerchange", 0.0);
+                            // Round to two decimal places
+                            prcPerChange = Math.round(prcPerChange * 100.0) / 100.0;
                         double pchange = stock.optDouble("Pchange", 0.0);
                         Long volume = stock.optLong("Volume", 0L);
                         Long averageVolume = stock.optLong("AverageVolume", 0L);
-                        parsedStockList.add(new StockAdxCriteriaDto(isin, sym, pPerchange, pchange, volume, averageVolume));
+                        parsedStockList.add(new StockAdxCriteriaDto(isin, sym, prcPerChange, pchange, volume, averageVolume));
                     }
                 }
             }
