@@ -28,7 +28,9 @@ public class StockController {
     org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StockController.class);
 
     @PostMapping("/firstfetch-and-store")
-    //first time fetch and populate th stock data
+    /*first time fetch and populate th stock data.
+      fetches data before the time in "fromTime", after market hours.
+    */
     public ResponseEntity<?> firstFetchAndStore(@RequestBody Map<String, Object> req) {
         String stockName = (String) req.get("stockName");
         String isin = (String) req.get("isin");
@@ -56,6 +58,8 @@ public class StockController {
             @RequestParam(defaultValue = "14") int period
     ) {
         List<StockPrice5Min> candles = stockService.getRecentCandles(stockName, time, rows + period);
+        log.info("stock:" + stockName + "; rows:" + rows + "; period:" + period + 
+            "; candles in datastore:" + candles.size());
         Collections.reverse(candles); // oldest first
         List<AdxService.AdxResult> adxResults = adxService.calculateAdx(candles, period);
         return ResponseEntity.ok(adxResults);

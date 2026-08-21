@@ -1,5 +1,6 @@
 target/
 stockdata.db
+.vscode/*
 *.db
 .vscode/*
 ./compile.sh
