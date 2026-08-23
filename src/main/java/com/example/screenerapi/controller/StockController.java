@@ -50,6 +50,17 @@ public class StockController {
         return ResponseEntity.ok(stockService.fetchAdxCriteriaStocks(timeframe, trend));
     }
 
+    @PostMapping("/subsequentfetch-and-store")
+    public ResponseEntity<?> subsequentFetchAndStore(@RequestBody Map<String, Object> req) {
+        String stockName = (String) req.get("stockName");
+        String isin = (String) req.get("isin");
+        String candleTimeFrame = (String) req.get("candleTimeFrame");
+        Long fromTime = ((Number) req.get("fromTime")).longValue();
+        log.info("isin value: {}, url value :{}", isin, externalApiUrl);
+        stockService.subsequentFetchAndStoreCandles(stockName, isin, candleTimeFrame, fromTime, externalApiUrl);
+        return ResponseEntity.ok(Collections.singletonMap("status", "success"));
+    }
+
     @GetMapping("/adx")
     public ResponseEntity<?> getAdx(
             @RequestParam String stockName,

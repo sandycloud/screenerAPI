@@ -32,6 +32,7 @@ import java.net.HttpURLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.net.URL;
+import java.util.Optional;
 
 @Service
 public class StockService {
@@ -52,6 +53,9 @@ public class StockService {
 
     @Value("${priceData.fetch.limit}")
     private int priceDataFetchLimit;
+
+    @Value("${subsequent.fetch.batch.size:100}")
+    private int subsequentFetchBatchSize;
 
     private final WebClient webClient = WebClient.builder().build();
     org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StockService.class);
@@ -195,6 +199,18 @@ public class StockService {
                         .concat("&limit=").concat(limit);
         log.info("Url: {}", temp);
         return fetchJsonDataUsingCurl(temp);
+    }
+
+    /**
+     * Fetch JSON data for subsequent fetch using the new resource-managed method.
+     * This is used by subsequentFetchAndStoreCandles for better resource management.
+     */
+    private JSONObject fetchJsonDataUsingCurlForSubsequentFetch(String externalApi, String isin, String timeFrame, long fromTime, String limit) {
+        String temp = externalApi.concat("?instrumentKey=NSE_EQ%7C").concat(isin);
+        temp = temp.concat("&interval=I").concat(timeFrame).concat("&from=").concat("" + fromTime)
+                .concat("&limit=").concat(limit);
+        log.info("Url for subsequent fetch: {}", temp);
+        return fetchJsonDataUsingCurlWithResources(temp);
     }
 
     private JSONObject fetchJsonDataUsingCurl(String url) {
@@ -668,6 +684,229 @@ public class StockService {
         // return a defensive copy to prevent accidental modification
         synchronized (adxCriteriaStocks) {
             return new ArrayList<>(adxCriteriaStocks);
+        }
+    }
+
+    /**
+     * Subsequent fetch and store candles for a stock.
+     * Fetches data from external API starting from fromTime going backwards,
+     * until reaching the maximum time_in_millis already stored in DB for that ISIN (inclusive).
+     * Uses upsert logic: updates existing records, inserts new ones.
+     * 
+     * @param stockName Stock name
+     * @param isin Stock ISIN
+     * @param candleTimeFrame Candle timeframe (e.g., "5", "15", "30")
+     * @param fromTime Start time in epoch milliseconds (current time)
+     * @param externalApiUrl External API base URL
+     */
+    public void subsequentFetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
+                                               Long fromTime, String externalApiUrl) {
+        long startTime = System.currentTimeMillis();
+        log.info("Starting subsequent fetch for ISIN: {}, timeframe: {}, fromTime: {}", isin, candleTimeFrame, fromTime);
+
+        // Get the maximum time_in_millis already stored for this ISIN
+        Optional<Long> maxTimeOpt = repository.findMaxTimeInMillisByIsin(isin);
+        
+        if (maxTimeOpt.isEmpty()) {
+            log.warn("No existing data for ISIN: {}. Consider using firstFetchAndStoreCandles instead.", isin);
+            // Could delegate to firstFetchAndStoreCandles, but for now just return
+            return;
+        }
+
+        Long maxTimeInMillis = maxTimeOpt.get();
+        log.info("Max time in DB for ISIN {}: {}", isin, maxTimeInMillis);
+
+        // If fromTime is already <= maxTimeInMillis, nothing to fetch
+        if (fromTime <= maxTimeInMillis) {
+            log.info("fromTime {} is already <= maxTimeInMillis {}. No fetch needed.", fromTime, maxTimeInMillis);
+            return;
+        }
+
+        long currentFromTime = fromTime;
+        int totalRecordsProcessed = 0;
+        int batchCount = 0;
+        int apiErrorCount = 0;
+
+        // Fetch batches until we reach or go past maxTimeInMillis
+        while (currentFromTime > maxTimeInMillis) {
+            long batchStartTime = System.currentTimeMillis();
+            batchCount++;
+            
+            try {
+                // Fetch batch from external API using resource-managed method
+                JSONObject respJson = fetchJsonDataUsingCurlForSubsequentFetch(externalApiUrl, isin, candleTimeFrame, 
+                                                             currentFromTime, String.valueOf(subsequentFetchBatchSize));
+                
+                if (respJson == null) {
+                    log.warn("Null response from API for ISIN: {} at fromTime: {}", isin, currentFromTime);
+                    apiErrorCount++;
+                    break;
+                }
+
+                // Process response and get the oldest candle time in this batch
+                Long oldestCandleTime = processResponseForSubsequentFetch(respJson, candleTimeFrame, stockName, isin);
+                
+                if (oldestCandleTime == null) {
+                    log.warn("No candles in response for ISIN: {} at fromTime: {}", isin, currentFromTime);
+                    break;
+                }
+
+                totalRecordsProcessed += subsequentFetchBatchSize;
+                
+                long batchDuration = System.currentTimeMillis() - batchStartTime;
+                log.info("Batch {} completed for ISIN: {} - processed ~{} records in {} ms. Oldest candle time: {}", 
+                        batchCount, isin, subsequentFetchBatchSize, batchDuration, oldestCandleTime);
+
+                // Update currentFromTime to the oldest candle time - 1ms to avoid overlap
+                // But ensure we don't go before maxTimeInMillis
+                currentFromTime = oldestCandleTime - 1;
+                
+                // If we've reached or passed maxTimeInMillis, we're done
+                if (currentFromTime <= maxTimeInMillis) {
+                    log.info("Reached maxTimeInMillis {}. Stopping fetch for ISIN: {}", maxTimeInMillis, isin);
+                    break;
+                }
+
+                // Small delay to avoid rate limiting (optional, configurable if needed)
+                // Thread.sleep(100);
+
+            } catch (Exception e) {
+                apiErrorCount++;
+                log.error("Error fetching batch {} for ISIN: {} - {}", batchCount, isin, e.getMessage(), e);
+                // Continue to next batch or break based on error type
+                // For now, break on error to avoid infinite loop
+                break;
+            }
+        }
+
+        long totalDuration = System.currentTimeMillis() - startTime;
+        log.info("Subsequent fetch completed for ISIN: {} - Total batches: {}, Total records: {}, API errors: {}, Duration: {} ms",
+                isin, batchCount, totalRecordsProcessed, apiErrorCount, totalDuration);
+    }
+
+    /**
+     * Process API response for subsequent fetch and persist candles with upsert logic.
+     * This is a new method (not modifying existing processResponse) that works for any timeframe.
+     * 
+     * @param inputJson API response JSON
+     * @param timeframe Candle timeframe
+     * @param stockName Stock name
+     * @param isin Stock ISIN
+     * @return The oldest candle time_in_millis in this batch, or null if no candles
+     */
+    private Long processResponseForSubsequentFetch(JSONObject inputJson, String timeframe, 
+                                                    String stockName, String isin) {
+        JSONObject data = inputJson.optJSONObject(dataTag);
+        Long oldestCandleTime = null;
+        
+        if (data != null && data.has("candles")) {
+            JSONArray candles = data.getJSONArray(tagCandles);
+            
+            if (candles == null || candles.length() == 0) {
+                return null;
+            }
+
+            log.info("Processing {} candles for ISIN: {} (timeframe: {})", candles.length(), isin, timeframe);
+            
+            // Use ArrayList with initial capacity for better memory efficiency
+            List<StockPrice5Min> entities = new ArrayList<>(candles.length());
+            
+            // Process candles - API returns in reverse chronological order (latest first)
+            for (int i = 0; i < candles.length(); i++) {
+                JSONArray candle = candles.getJSONArray(i);
+                Long timeInMillis = candle.getLong(0);
+                
+                // Track the oldest candle time (last in the array since it's reverse chronological)
+                if (i == candles.length() - 1) {
+                    oldestCandleTime = timeInMillis;
+                }
+
+                // Upsert: find existing or create new
+                StockPrice5Min entity = repository.findByTimeInMillisAndIsin(timeInMillis, isin)
+                        .orElse(new StockPrice5Min());
+
+                entity.setIsin(isin);
+                entity.setTimeInMillis(timeInMillis);
+                entity.setOpen(candle.getDouble(1));
+                entity.setHigh(candle.getDouble(2));
+                entity.setLow(candle.getDouble(3));
+                entity.setClose(candle.getDouble(4));
+                entity.setVolume(candle.getLong(5));
+                entity.setAlternateVal(candle.getDouble(6));
+                entity.setDatetimestamp(StockPriceUtil.convertMillisToLocalDateTime(timeInMillis).toString());
+                
+                entities.add(entity);
+            }
+
+            // Batch save all entities
+            if (!entities.isEmpty()) {
+                repository.saveAll(entities);
+                repository.flush();
+                // Clear for GC
+                entities.clear();
+                entities = null;
+            }
+        }
+        
+        return oldestCandleTime;
+    }
+
+    /**
+     * Fetch JSON data from external API using curl with proper resource management.
+     * Uses try-with-resources to ensure ProcessBuilder and BufferedReader are closed.
+     * 
+     * @param url Full API URL with query parameters
+     * @return Parsed JSONObject or null on error
+     */
+    private JSONObject fetchJsonDataUsingCurlWithResources(String url) {
+        try {
+            log.debug("Fetching data using curl: {}", url);
+            
+            // Build the curl command
+            String[] command = {"curl", "--location", "--request", "GET", url, "--max-time", "30"};
+
+            // Execute the command with proper resource management
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            Process process = processBuilder.start();
+
+            // Use try-with-resources for automatic cleanup
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                StringBuilder responseBuilder = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    responseBuilder.append(line);
+                }
+
+                // Wait for the process to complete
+                int exitCode = process.waitFor();
+                if (exitCode != 0) {
+                    // Read error stream for debugging
+                    String errorOutput = "";
+                    try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                        StringBuilder errorBuilder = new StringBuilder();
+                        String errorLine;
+                        while ((errorLine = errorReader.readLine()) != null) {
+                            errorBuilder.append(errorLine);
+                        }
+                        errorOutput = errorBuilder.toString();
+                    }
+                    log.error("Curl command failed with exit code: {}. Error: {}", exitCode, errorOutput);
+                    throw new RuntimeException("Curl command failed with exit code: " + exitCode + ". Error: " + errorOutput);
+                }
+
+                String response = responseBuilder.toString();
+                log.debug("Response length: {}", response.length());
+                
+                if (response.isEmpty()) {
+                    log.warn("Empty response from API");
+                    return null;
+                }
+
+                return new JSONObject(response);
+            }
+        } catch (Exception e) {
+            log.error("Error executing curl command for URL: {} - {}", url, e.getMessage(), e);
+            throw new RuntimeException("Error executing curl command: " + e.getMessage(), e);
         }
     }
 }

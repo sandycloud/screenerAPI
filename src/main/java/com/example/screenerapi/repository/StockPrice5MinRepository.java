@@ -20,4 +20,6 @@ public interface StockPrice5MinRepository extends JpaRepository<StockPrice5Min, 
     Optional<StockPrice5Min> findByTimeInMillisAndIsin(Long timeInMillis, String isin);
     Optional <StockPrice5Min> findByIsin (String isin);
 
+    @Query(value = "SELECT MAX(time_in_millis) FROM stock_price_5min WHERE isin = ?1", nativeQuery = true)
+    Optional<Long> findMaxTimeInMillisByIsin(String isin);
 }
