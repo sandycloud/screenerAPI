@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import jakarta.annotation.PostConstruct;
 import okhttp3.OkHttpClient;
 import okhttp3.MediaType;
 import okhttp3.RequestBody;
@@ -57,6 +58,14 @@ public class StockService {
     @Value("${subsequent.fetch.batch.size:100}")
     private int subsequentFetchBatchSize;
 
+    @Value("${nse_index:}")
+    private String nseIndex;
+
+    @Value("${bse_index:}")
+    private String bseIndex;
+
+    private String[] nseIndexValues;
+    private String [] bseIndexVals ;
     private final WebClient webClient = WebClient.builder().build();
     org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StockService.class);
 
@@ -65,6 +74,15 @@ public class StockService {
     static final String metaTag = "meta";
     static final String dataTag ="data";
     static final String iSinString = "Isin";
+
+    @PostConstruct
+    private void initializeNseIndexValues() {
+        nseIndexValues = nseIndex == null || nseIndex.isBlank()
+                ? new String[0]
+                : nseIndex.split(",");
+        bseIndexVals = bseIndex == null || bseIndex.isBlank() ?
+                        new String[0] : bseIndex.split(",");
+    }
 
     public void firstFetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
                        Long fromTime, String externalApiUrl) {
@@ -194,9 +212,12 @@ public class StockService {
 
 
     public JSONObject fetchJsonDataUsingCurl(String externalApi, String isin, String timeFrame, long fromTime, String limit){
-        String temp= externalApi.concat("?instrumentKey=NSE_EQ%7C").concat(isin);
+        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" : "NSE_EQ%7C";
+        String temp= externalApi.concat("?instrumentKey=").concat(instrumentType)
+            .concat(java.net.URLEncoder.encode(isin, java.nio.charset.StandardCharsets.UTF_8));
         temp = temp.concat("&interval=I").concat(timeFrame).concat("&from=").concat(""+ fromTime)
                         .concat("&limit=").concat(limit);
+        //temp = java.net.URLEncoder.encode(temp, java.nio.charset.StandardCharsets.UTF_8);
         log.info("Url: {}", temp);
         return fetchJsonDataUsingCurl(temp);
     }
@@ -206,11 +227,26 @@ public class StockService {
      * This is used by subsequentFetchAndStoreCandles for better resource management.
      */
     private JSONObject fetchJsonDataUsingCurlForSubsequentFetch(String externalApi, String isin, String timeFrame, long fromTime, String limit) {
-        String temp = externalApi.concat("?instrumentKey=NSE_EQ%7C").concat(isin);
+        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" : "NSE_EQ%7C";
+        String temp = externalApi.concat("?instrumentKey=").concat(instrumentType)
+                .concat(java.net.URLEncoder.encode(isin, java.nio.charset.StandardCharsets.UTF_8));
         temp = temp.concat("&interval=I").concat(timeFrame).concat("&from=").concat("" + fromTime)
                 .concat("&limit=").concat(limit);
         log.info("Url for subsequent fetch: {}", temp);
         return fetchJsonDataUsingCurlWithResources(temp);
+    }
+
+    private boolean isNseIndex(String isin) {
+        if (isin == null) {
+            return false;
+        }
+
+        for (String configuredIndex : nseIndexValues) {
+            if (configuredIndex.trim().equalsIgnoreCase(isin.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JSONObject fetchJsonDataUsingCurl(String url) {
@@ -238,6 +274,8 @@ public class StockService {
             if (exitCode != 0) {
                 throw new RuntimeException("Curl command failed with exit code: " + exitCode);
             }
+            process.destroy();
+            reader.close();
             log.info("response length: {}", responseBuilder.length());
             // Convert the response to a JSONObject
             return new JSONObject(responseBuilder.toString());
@@ -869,8 +907,9 @@ public class StockService {
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             Process process = processBuilder.start();
 
-            // Use try-with-resources for automatic cleanup
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try {
+                // Use try-with-resources for automatic cleanup
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 StringBuilder responseBuilder = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -903,6 +942,9 @@ public class StockService {
                 }
 
                 return new JSONObject(response);
+                }
+            } finally {
+                process.destroy();
             }
         } catch (Exception e) {
             log.error("Error executing curl command for URL: {} - {}", url, e.getMessage(), e);
