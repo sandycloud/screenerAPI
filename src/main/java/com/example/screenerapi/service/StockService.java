@@ -212,7 +212,8 @@ public class StockService {
 
 
     public JSONObject fetchJsonDataUsingCurl(String externalApi, String isin, String timeFrame, long fromTime, String limit){
-        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" : "NSE_EQ%7C";
+        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" :
+                (isBseIndex(isin) ? "SENSEX%7C" : "NSE_EQ%7C");
         String temp= externalApi.concat("?instrumentKey=").concat(instrumentType)
             .concat(java.net.URLEncoder.encode(isin, java.nio.charset.StandardCharsets.UTF_8));
         temp = temp.concat("&interval=I").concat(timeFrame).concat("&from=").concat(""+ fromTime)
@@ -242,6 +243,19 @@ public class StockService {
         }
 
         for (String configuredIndex : nseIndexValues) {
+            if (configuredIndex.trim().equalsIgnoreCase(isin.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBseIndex(String isin) {
+        if (isin == null) {
+            return false;
+        }
+
+        for (String configuredIndex : bseIndexVals) {
             if (configuredIndex.trim().equalsIgnoreCase(isin.trim())) {
                 return true;
             }
