@@ -17,6 +17,25 @@ public class StockInfoService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    public StockInfo findByIsin(String isin) {
+        return stockInfoRepository.findByIsin(isin);
+    }
+
+    public void updateLastDataFetch(String isin, String name, long fetchTime) {
+        StockInfo info = stockInfoRepository.findByIsin(isin);
+        if (info == null) {
+            info = new StockInfo();
+            info.setIsin(isin);
+        }
+        if (name != null && !name.isBlank()) {
+            info.setName(name);
+        } else if (info.getName() == null) {
+            info.setName(isin);
+        }
+        info.setTimeAtLastDataFetch(String.valueOf(fetchTime));
+        stockInfoRepository.save(info);
+    }
+
     public void fetchAndStoreStockInfo(String externalApiUrl, Map<String, Object> payload) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
