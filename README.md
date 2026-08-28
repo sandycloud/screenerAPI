@@ -33,6 +33,8 @@ is idle and skips stocks whose `stock_info.timeAtLastDataFetch` is within the hi
 
 Important properties include `stock.processor.interval.minutes`,
 `stock.processor.low-priority.interval.minutes`, `scanx.api.url`, `nse_index`, and `bse_index`.
+Set `stock.processor.low-priority.mode=one-pass` to run the secondary processor only once after startup;
+the default `repeat` mode runs it at the configured interval.
 Processor log entries are tagged `HIGH Priority` or `LOW Priority`.
 
 ---

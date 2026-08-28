@@ -28,4 +28,20 @@ class ScanxClientTest {
 
         assertTrue(ScanxClient.parse(response).isEmpty());
     }
+
+    @Test
+    void skipsShortAndNonArrayRows() {
+        String response = "{\"code\":0,\"headers\":[\"Isin\",\"Sym\"],"
+                + "\"data\":[[\"INE123\"],{\"Isin\":\"INE456\"}]}";
+
+        assertTrue(ScanxClient.parse(response).isEmpty());
+    }
+
+    @Test
+    void rejectsNonZeroScanxCode() {
+        String response = "{\"code\":1,\"remarks\":\"failed\"}";
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class, () -> ScanxClient.parse(response));
+    }
 }

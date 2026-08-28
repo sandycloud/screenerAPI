@@ -89,7 +89,10 @@ public class StockService {
     public void firstFetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
                        Long fromTime, String externalApiUrl) {
         //fetchCandleData();
-        String url = externalApiUrl + "?instrumentKey=NSE_EQ%7C" + isin + "&interval=I" +
+        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" :
+            (isBseIndex(isin) ? "BSE_INDEX%7C" : "NSE_EQ%7C");
+        String encodedIsin = URLEncoder.encode(isin, StandardCharsets.UTF_8);
+        String url = externalApiUrl + "?instrumentKey=" + instrumentType + encodedIsin + "&interval=I" +
                 candleTimeFrame + "&from=" + fromTime + "&limit=500";
         log.info("Fetching candles for  URL: {}",  url);
 
@@ -763,8 +766,8 @@ public class StockService {
         Optional<Long> maxTimeOpt = repository.findMaxTimeInMillisByIsin(isin);
         
         if (maxTimeOpt.isEmpty()) {
-            log.warn("No existing data for ISIN: {}. Consider using firstFetchAndStoreCandles instead.", isin);
-            // Could delegate to firstFetchAndStoreCandles, but for now just return
+            log.info("No existing data for ISIN: {}. Falling back to first fetch.", isin);
+            firstFetchAndStoreCandles(stockName, isin, candleTimeFrame, fromTime, externalApiUrl);
             return;
         }
 
@@ -814,11 +817,12 @@ public class StockService {
                     break;
                 }
 
-                totalRecordsProcessed += countCandles(respJson);
+                int batchRecordCount = countCandles(respJson);
+                totalRecordsProcessed += batchRecordCount;
                 
                 long batchDuration = System.currentTimeMillis() - batchStartTime;
-                log.info("Batch {} completed for ISIN: {} - processed ~{} records in {} ms. Oldest candle time: {}", 
-                        batchCount, isin, subsequentFetchBatchSize, batchDuration, oldestCandleTime);
+                log.info("Batch {} completed for ISIN: {} - processed {} records in {} ms. Oldest candle time: {}",
+                    batchCount, isin, batchRecordCount, batchDuration, oldestCandleTime);
 
                 // Update currentFromTime to the oldest candle time - 1ms to avoid overlap
                 // But ensure we don't go before maxTimeInMillis
@@ -880,7 +884,7 @@ public class StockService {
                 Long timeInMillis = candle.getLong(0);
                 
                 // Track the oldest candle time (last in the array since it's reverse chronological)
-                if (i == candles.length() - 1) {
+                if (oldestCandleTime == null || timeInMillis < oldestCandleTime) {
                     oldestCandleTime = timeInMillis;
                 }
 
