@@ -55,7 +55,14 @@ public class ScanxClient {
 
         List<ScanxStock> stocks = new ArrayList<>();
         for (int rowIndex = 0; rowIndex < rows.length(); rowIndex++) {
-            JSONArray row = rows.getJSONArray(rowIndex);
+            Object rawRow = rows.get(rowIndex);
+            if (!(rawRow instanceof JSONArray)) {
+                continue;
+            }
+            JSONArray row = (JSONArray) rawRow;
+            if (row.length() < headers.length()) {
+                continue;
+            }
             String isin = stringValue(row, positions.get("Isin"));
             if (isin == null || isin.isBlank()) {
                 continue;
