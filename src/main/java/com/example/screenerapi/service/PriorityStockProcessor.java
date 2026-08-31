@@ -87,7 +87,12 @@ public class PriorityStockProcessor implements SmartLifecycle {
         Instant now = Instant.now();
         long epochMinutes = now.getEpochSecond() / 60;
         long nextBoundary = ((epochMinutes / 5) + 1) * 5;
-        return Math.max(0, (nextBoundary + 1) * 60 - now.getEpochSecond());
+        double boundarytime = (nextBoundary +0.4) * 60;
+        
+        double currTime = now.getEpochSecond();
+        log.info("calculating init delay : minutes:{}; seconds:{}; {}", nextBoundary, 
+            boundarytime, currTime);
+        return Math.max(0, ( (nextBoundary * 60)+ 5 ) - now.getEpochSecond() );
     }
 
     private void runHighPriority() {
@@ -104,6 +109,7 @@ public class PriorityStockProcessor implements SmartLifecycle {
 
         processingGate.lock();
         long started = System.currentTimeMillis();
+        log.info("------------------------------------");
         log.info("HIGH Priority cycle started");
         try {
             Map<String, ScanxStock> stocks = new LinkedHashMap<>();
@@ -164,7 +170,8 @@ public class PriorityStockProcessor implements SmartLifecycle {
                     StockInfo info = stockInfoService.findByIsin(stock.getIsin());
                     if (recentlyProcessed(info)) {
                         counts.skipped++;
-                        log.info("LOW Priority skipped recently processed ISIN={}", stock.getIsin());
+                        log.info("LOW Priority skipped recently processed ISIN={}", stock.getIsin() + ";" 
+                            + stock.getDisplayName());
                         continue;
                     }
                     try {
@@ -235,7 +242,8 @@ public class PriorityStockProcessor implements SmartLifecycle {
                 System.currentTimeMillis(), externalApiUrl);
         String name = stock.getDisplayName() == null ? stock.getSymbol() : stock.getDisplayName();
         stockInfoService.updateLastDataFetch(stock.getIsin(), name, System.currentTimeMillis());
-        log.info("{} processed ISIN={} durationMs={}", priority, stock.getIsin(),
+        log.info("{} processed ISIN={} durationMs={}", priority, stock.getIsin() + ";" +
+                stock.getDisplayName(),
                 System.currentTimeMillis() - started);
     }
 

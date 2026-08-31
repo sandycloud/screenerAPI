@@ -24,6 +24,8 @@ public class ScanxClient {
                 .url(url)
                 .post(RequestBody.create(requestBody, JSON))
                 .header("Content-Type", "application/json")
+                .header("Auth", 
+        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwiZXhwIjoxNzg4MjE0NTcwLCJjbGllbnRfaWQiOiIxMTA0OTA0NzgwIn0.g-0MBjJ6rmF0Nqpv-eaOfJi0YeuC2DDiPGXsXS1Vt7KQ8MnFx_vJ-7wKOkJnUsvWgoFcCxrn9ymiZSa-uOBOYg")
                 .build();
 
         try (Response response = client.newCall(request).execute()) {
@@ -33,6 +35,8 @@ public class ScanxClient {
             return parse(response.body().string());
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to fetch ScanX stock list", exception);
+        }finally {
+            request =null;
         }
     }
 

@@ -175,7 +175,7 @@ public class StockService {
     private void processResponse(JSONObject inputJson, String timeframe, String stockName, String isin){
         JSONObject data = inputJson.optJSONObject(dataTag);
         //log.info("Fetched data for ISIN: {}, data:{}" ,isin, data != null ? data.opt("meta") : null);
-        log.info("hmmmm,,, candles data {}", data != null ? data.toString() : "null");
+        log.debug("hmmmm,,, candles data {}", data != null ? data.toString() : "null");
         if (data != null && data.has("candles")) {
             //log.info("candles data for stock: {}, ISIN:" ,isin);
             JSONArray candles = data.getJSONArray(tagCandles);
@@ -202,8 +202,9 @@ public class StockService {
                 entity.setAlternateVal(candle.getDouble(6));
                 entity.setDatetimestamp(StockPriceUtil.
                         convertMillisToLocalDateTime(candle.getLong(0)).toString());
-                log.info("local date time:{}", StockPriceUtil.
+                /*log.info("local date time:{}", StockPriceUtil.
                         convertMillisToLocalDateTime(candle.getLong(0)).toString());
+                */
                 entities.add(entity);
             }
             repository.saveAll(entities);
