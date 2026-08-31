@@ -34,6 +34,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.net.URL;
 import java.util.Optional;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class StockService {
@@ -87,7 +89,10 @@ public class StockService {
     public void firstFetchAndStoreCandles(String stockName, String isin, String candleTimeFrame,
                        Long fromTime, String externalApiUrl) {
         //fetchCandleData();
-        String url = externalApiUrl + "?instrumentKey=NSE_EQ%7C" + isin + "&interval=I" +
+        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" :
+            (isBseIndex(isin) ? "BSE_INDEX%7C" : "NSE_EQ%7C");
+        String encodedIsin = URLEncoder.encode(isin, StandardCharsets.UTF_8);
+        String url = externalApiUrl + "?instrumentKey=" + instrumentType + encodedIsin + "&interval=I" +
                 candleTimeFrame + "&from=" + fromTime + "&limit=500";
         log.info("Fetching candles for  URL: {}",  url);
 
@@ -170,7 +175,7 @@ public class StockService {
     private void processResponse(JSONObject inputJson, String timeframe, String stockName, String isin){
         JSONObject data = inputJson.optJSONObject(dataTag);
         //log.info("Fetched data for ISIN: {}, data:{}" ,isin, data != null ? data.opt("meta") : null);
-        log.info("hmmmm,,, candles data {}", data != null ? data.toString() : "null");
+        log.debug("hmmmm,,, candles data {}", data != null ? data.toString() : "null");
         if (data != null && data.has("candles")) {
             //log.info("candles data for stock: {}, ISIN:" ,isin);
             JSONArray candles = data.getJSONArray(tagCandles);
@@ -197,8 +202,9 @@ public class StockService {
                 entity.setAlternateVal(candle.getDouble(6));
                 entity.setDatetimestamp(StockPriceUtil.
                         convertMillisToLocalDateTime(candle.getLong(0)).toString());
-                log.info("local date time:{}", StockPriceUtil.
+                /*log.info("local date time:{}", StockPriceUtil.
                         convertMillisToLocalDateTime(candle.getLong(0)).toString());
+                */
                 entities.add(entity);
             }
             repository.saveAll(entities);
@@ -213,7 +219,7 @@ public class StockService {
 
     public JSONObject fetchJsonDataUsingCurl(String externalApi, String isin, String timeFrame, long fromTime, String limit){
         String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" :
-                (isBseIndex(isin) ? "SENSEX%7C" : "NSE_EQ%7C");
+            (isBseIndex(isin) ? "BSE_INDEX%7C" : "NSE_EQ%7C");
         String temp= externalApi.concat("?instrumentKey=").concat(instrumentType)
             .concat(java.net.URLEncoder.encode(isin, java.nio.charset.StandardCharsets.UTF_8));
         temp = temp.concat("&interval=I").concat(timeFrame).concat("&from=").concat(""+ fromTime)
@@ -228,7 +234,8 @@ public class StockService {
      * This is used by subsequentFetchAndStoreCandles for better resource management.
      */
     private JSONObject fetchJsonDataUsingCurlForSubsequentFetch(String externalApi, String isin, String timeFrame, long fromTime, String limit) {
-        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" : "NSE_EQ%7C";
+        String instrumentType = isNseIndex(isin) ? "NSE_INDEX%7C" :
+            (isBseIndex(isin) ? "BSE_INDEX%7C" : "NSE_EQ%7C");
         String temp = externalApi.concat("?instrumentKey=").concat(instrumentType)
                 .concat(java.net.URLEncoder.encode(isin, java.nio.charset.StandardCharsets.UTF_8));
         temp = temp.concat("&interval=I").concat(timeFrame).concat("&from=").concat("" + fromTime)
@@ -760,8 +767,8 @@ public class StockService {
         Optional<Long> maxTimeOpt = repository.findMaxTimeInMillisByIsin(isin);
         
         if (maxTimeOpt.isEmpty()) {
-            log.warn("No existing data for ISIN: {}. Consider using firstFetchAndStoreCandles instead.", isin);
-            // Could delegate to firstFetchAndStoreCandles, but for now just return
+            log.info("No existing data for ISIN: {}. Falling back to first fetch.", isin);
+            firstFetchAndStoreCandles(stockName, isin, candleTimeFrame, fromTime, externalApiUrl);
             return;
         }
 
@@ -775,6 +782,7 @@ public class StockService {
         }
 
         long currentFromTime = fromTime;
+        Set<Long> fetchedPageTimes = new HashSet<>();
         int totalRecordsProcessed = 0;
         int batchCount = 0;
         int apiErrorCount = 0;
@@ -796,18 +804,26 @@ public class StockService {
                 }
 
                 // Process response and get the oldest candle time in this batch
-                Long oldestCandleTime = processResponseForSubsequentFetch(respJson, candleTimeFrame, stockName, isin);
+                Long oldestCandleTime = processResponseForSubsequentFetch(respJson, candleTimeFrame, stockName, isin,
+                    maxTimeInMillis);
                 
                 if (oldestCandleTime == null) {
                     log.warn("No candles in response for ISIN: {} at fromTime: {}", isin, currentFromTime);
                     break;
                 }
 
-                totalRecordsProcessed += subsequentFetchBatchSize;
+                if (!fetchedPageTimes.add(oldestCandleTime)) {
+                    log.warn("Repeated candle page for ISIN: {} at oldest time: {}. Stopping.",
+                            isin, oldestCandleTime);
+                    break;
+                }
+
+                int batchRecordCount = countCandles(respJson);
+                totalRecordsProcessed += batchRecordCount;
                 
                 long batchDuration = System.currentTimeMillis() - batchStartTime;
-                log.info("Batch {} completed for ISIN: {} - processed ~{} records in {} ms. Oldest candle time: {}", 
-                        batchCount, isin, subsequentFetchBatchSize, batchDuration, oldestCandleTime);
+                log.info("Batch {} completed for ISIN: {} - processed {} records in {} ms. Oldest candle time: {}",
+                    batchCount, isin, batchRecordCount, batchDuration, oldestCandleTime);
 
                 // Update currentFromTime to the oldest candle time - 1ms to avoid overlap
                 // But ensure we don't go before maxTimeInMillis
@@ -846,8 +862,8 @@ public class StockService {
      * @param isin Stock ISIN
      * @return The oldest candle time_in_millis in this batch, or null if no candles
      */
-    private Long processResponseForSubsequentFetch(JSONObject inputJson, String timeframe, 
-                                                    String stockName, String isin) {
+    private Long processResponseForSubsequentFetch(JSONObject inputJson, String timeframe,
+                                                    String stockName, String isin, long maxTimeInMillis) {
         JSONObject data = inputJson.optJSONObject(dataTag);
         Long oldestCandleTime = null;
         
@@ -869,8 +885,12 @@ public class StockService {
                 Long timeInMillis = candle.getLong(0);
                 
                 // Track the oldest candle time (last in the array since it's reverse chronological)
-                if (i == candles.length() - 1) {
+                if (oldestCandleTime == null || timeInMillis < oldestCandleTime) {
                     oldestCandleTime = timeInMillis;
+                }
+
+                if (timeInMillis < maxTimeInMillis) {
+                    continue;
                 }
 
                 // Upsert: find existing or create new
@@ -901,6 +921,12 @@ public class StockService {
         }
         
         return oldestCandleTime;
+    }
+
+    private int countCandles(JSONObject inputJson) {
+        JSONObject data = inputJson == null ? null : inputJson.optJSONObject(dataTag);
+        JSONArray candles = data == null ? null : data.optJSONArray(tagCandles);
+        return candles == null ? 0 : candles.length();
     }
 
     /**

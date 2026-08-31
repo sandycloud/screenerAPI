@@ -23,4 +23,18 @@ This project provides REST APIs to:
 - `POST /api/stock/fetch-and-store` - Fetches and stores candle data.
 - `GET /api/stock/adx` - Returns ADX, +DI, -DI for a stock.
 
+## Background stock processors
+
+The priority processors are disabled by default. Set `stock.processor.enabled=true` to enable them.
+They first run one minute after the next five-minute boundary. The high-priority processor fetches
+ScanX ADX uptrend/downtrend stocks and configured indices, then stores candles through the existing
+subsequent-fetch flow. The low-priority processor fetches unusual-volume stocks while high priority
+is idle and skips stocks whose `stock_info.timeAtLastDataFetch` is within the high-priority interval.
+
+Important properties include `stock.processor.interval.minutes`,
+`stock.processor.low-priority.interval.minutes`, `scanx.api.url`, `nse_index`, and `bse_index`.
+Set `stock.processor.low-priority.mode=one-pass` to run the secondary processor only once after startup;
+the default `repeat` mode runs it at the configured interval.
+Processor log entries are tagged `HIGH Priority` or `LOW Priority`.
+
 ---

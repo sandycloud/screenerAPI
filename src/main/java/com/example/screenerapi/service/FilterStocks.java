@@ -44,7 +44,8 @@ public class FilterStocks {
         OkHttpClient client = new OkHttpClient();
         MediaType mediaType = MediaType.parse("application/json");
         RequestBody body = RequestBody.create(requestBody, mediaType);
-        Request request = new Request.Builder()
+        Request request = new Request.Builder().addHeader("Auth", 
+        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwiZXhwIjoxNzg4MjE0NTQxLCJjbGllbnRfaWQiOiIxMTA0OTA0NzgwIn0.NSr_FOpG4_u6JhLrdKTnERFSs2FYiBS3QimoqRf2DuKnd_VPvQQKg-U1MEJknPtqqjojEzpOpSkzxcndFcDhyw")
                 .url(url)
                 .post(body)
                 .build();

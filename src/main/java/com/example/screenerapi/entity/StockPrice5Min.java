@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "stock_price_5min", indexes = {
-        @Index(name = "idx_isin_time", columnList = "isin, timeInMillis")
+    @Index(name = "idx_isin_time", columnList = "isin, timeInMillis")
 })
 public class StockPrice5Min {
     @Id
