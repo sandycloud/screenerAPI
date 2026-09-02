@@ -51,12 +51,16 @@ public class StockInfoService {
                         StockInfo existing = stockInfoRepository.findByIsin(isin);
                         if (existing != null) {
                             existing.setName(name);
+                            existing.setSymbol((String) obj.get("Sym"));
                             stockInfoRepository.save(existing);
+                            existing = null;
                         } else {
                             StockInfo info = new StockInfo();
                             info.setIsin(isin);
                             info.setName(name);
+                            info.setSymbol((String) obj.get("Sym"));
                             stockInfoRepository.save(info);
+                            info = null;
                         }
                     }
                 }

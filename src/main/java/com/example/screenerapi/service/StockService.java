@@ -980,6 +980,7 @@ public class StockService {
                     log.warn("Empty response from API");
                     return null;
                 }
+                responseBuilder = null;
 
                 return new JSONObject(response);
                 }

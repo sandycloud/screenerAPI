@@ -28,11 +28,18 @@ public class FilterStocks {
     @Value("${adx.api.url}")
     private String adxApiUrl;
 
+    @Value("${adx.auth:}")
+    private String adxAuthToken;
+
     /**
      * Calls external API for ADX criteria stocks and parses the result.
      * @return The latest List of StockAdxCriteriaDto
      */
     public List<StockAdxCriteriaDto> fetchAdxCriteriaStocksFromApi(String trend) {
+        if (adxAuthToken == null || adxAuthToken.isBlank()) {
+            throw new IllegalStateException("Missing ADX auth token. Pass it as a command-line argument: --adx.auth=<token>");
+        }
+
         String url = adxApiUrl;
         // Request JSON loaded from application.properties
         String requestBody = null;
@@ -44,8 +51,8 @@ public class FilterStocks {
         OkHttpClient client = new OkHttpClient();
         MediaType mediaType = MediaType.parse("application/json");
         RequestBody body = RequestBody.create(requestBody, mediaType);
-        Request request = new Request.Builder().addHeader("Auth", 
-        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwiZXhwIjoxNzg4MjE0NTQxLCJjbGllbnRfaWQiOiIxMTA0OTA0NzgwIn0.NSr_FOpG4_u6JhLrdKTnERFSs2FYiBS3QimoqRf2DuKnd_VPvQQKg-U1MEJknPtqqjojEzpOpSkzxcndFcDhyw")
+        Request request = new Request.Builder()
+                .addHeader("Auth", adxAuthToken)
                 .url(url)
                 .post(body)
                 .build();

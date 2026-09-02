@@ -16,8 +16,16 @@ This project provides REST APIs to:
 
 ## How to Run
 1. Build the project with Maven or Gradle.
-2. Run the application: `./mvnw spring-boot:run` or `./gradlew bootRun`
+2. Start the application with the required auth tokens passed as command-line arguments so the values are not hardcoded in source:
+   - `./mvnw spring-boot:run -Dspring-boot.run.arguments="--scanx.auth=YOUR_SCANX_TOKEN,--adx.auth=YOUR_ADX_TOKEN"`
+   - or `java -jar target/screenerAPI-0.0.1-SNAPSHOT.jar --scanx.auth=YOUR_SCANX_TOKEN --adx.auth=YOUR_ADX_TOKEN`
+
+Note: Use the above command with auth info only if connecting to new scanx url to retrieve momentum stock names. Because "dhan" broker has added security to the new url. you will need to create an account in Dhan. 
+If you use the older url to find momentum stocks then no need to supply auth info.
+
 3. Use the provided REST endpoints to interact with the API.
+
+> Do not commit real tokens to the repository. Keep them in your local environment or pass them as startup arguments.
 
 ## Endpoints
 - `POST /api/stock/fetch-and-store` - Fetches and stores candle data.

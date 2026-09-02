@@ -9,6 +9,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScanxClientTest {
     @Test
+    void parsesOldObjectRowsUsingRequiredFields() {
+        String response = "{\"code\":0,\"data\":[{\"Isin\":\"INE123\",\"Sym\":\"ABC\","
+                + "\"DispSym\":\"Example\",\"Volume\":12345}]}";
+
+        List<ScanxStock> stocks = ScanxClient.parseOld(response);
+
+        assertEquals(1, stocks.size());
+        assertEquals("INE123", stocks.get(0).getIsin());
+        assertEquals("ABC", stocks.get(0).getSymbol());
+        assertEquals("Example", stocks.get(0).getDisplayName());
+        assertEquals(12345, stocks.get(0).getValues().get("Volume"));
+    }
+
+    @Test
     void parsesIsinUsingHeadersRatherThanAssumedPositions() {
         String response = "{\"code\":0,\"headers\":[\"Sym\",\"DispSym\",\"Isin\",\"Volume\"],"
                 + "\"data\":[[\"ABC\",\"Example\",\"INE123\",12345]]}";
