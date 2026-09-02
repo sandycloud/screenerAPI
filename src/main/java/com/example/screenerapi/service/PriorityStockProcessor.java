@@ -36,12 +36,28 @@ public class PriorityStockProcessor implements SmartLifecycle {
     private String externalApiUrl;
     @Value("${scanx.api.url:https://scanx-analytics.dhan.co/customscan/v2/fetchdt}")
     private String scanxUrl;
-    @Value("${scanx.uptrend.request.body:}")
+    
+    @Value("${adx.uptrend5Min.request.body:}") //this is for old URL( need to use old payload structure)
     private String uptrendRequest;
-    @Value("${scanx.downtrend.request.body:}")
+
+    @Value("${adx.downtrend5Min.request.body:}")//this is for old URL( need to use old payload structure)
     private String downtrendRequest;
+
+    @Value("${scanx.uptrend.request.body:}") //this is for new URL( need to use new payload structure)
+    private String uptrendRequest_new;
+
+    @Value("${scanx.downtrend.request.body:}") //this is for new URL( need to use new payload structure)
+    private String downtrendRequest_new;
+
+    @Value("${scanx.use.url:}")
+    private String useOldOrNewUrl ;
+
     @Value("${scanx.unusual-volume.request.body:}")
-    private String unusualVolumeRequest;
+    private String unusualVolumeRequest_new;
+
+    @Value("${adx.highvolume.request.body:}")
+    private String unusualVolumeRequest ;
+
     @Value("${stock.processor.interval.minutes:5}")
     private long intervalMinutes;
     @Value("${stock.processor.low-priority.interval.minutes:1}")
@@ -113,8 +129,13 @@ public class PriorityStockProcessor implements SmartLifecycle {
         log.info("HIGH Priority cycle started");
         try {
             Map<String, ScanxStock> stocks = new LinkedHashMap<>();
-            addStocks(stocks, scanxClient.fetch(scanxUrl, uptrendRequest));
-            addStocks(stocks, scanxClient.fetch(scanxUrl, downtrendRequest));
+            if (useOldOrNewUrl.equalsIgnoreCase("old")){
+                addStocks(stocks, scanxClient.fetch(scanxUrl, uptrendRequest));
+                addStocks(stocks, scanxClient.fetch(scanxUrl, downtrendRequest));
+            }else {
+                addStocks(stocks, scanxClient.fetch(scanxUrl, uptrendRequest_new));
+                addStocks(stocks, scanxClient.fetch(scanxUrl, downtrendRequest_new));
+            }
             addIndices(stocks);
             ProcessingCounts counts = processHighPriorityStocks(stocks.values());
             log.info("HIGH Priority cycle finished: candidates={}, processed={}, failed={}, durationMs={}",

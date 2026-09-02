@@ -20,6 +20,9 @@ public class StockInfo {
     @Column(nullable = true)
     private String timeAtLastDataFetch;
 
+    @Column (nullable = true)
+    private String symbol;
+
     // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -31,4 +34,6 @@ public class StockInfo {
     public String getTimeAtLastDataFetch () { return timeAtLastDataFetch;}
     public void setTimeAtLastDataFetch (String timeAtLastDataFetch) { this.timeAtLastDataFetch = timeAtLastDataFetch;}
 
+    public String getSymbol() { return symbol; }
+    public void setSymbol(String symbl) { this.symbol = symbl; }
 }
