@@ -9,4 +9,6 @@ import java.util.List;
 public interface StockInfoRepository extends JpaRepository<StockInfo, Long> {
     StockInfo findByIsin(String isin);
     List<StockInfo> findByNameContainingIgnoreCase(String name);
+
+    List<StockInfo> findByIsinIn(List<String> isins);
 }

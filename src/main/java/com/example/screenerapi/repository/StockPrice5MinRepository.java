@@ -2,6 +2,7 @@ package com.example.screenerapi.repository;
 
 import com.example.screenerapi.entity.StockPrice5Min;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -22,4 +23,11 @@ public interface StockPrice5MinRepository extends JpaRepository<StockPrice5Min, 
 
     @Query(value = "SELECT MAX(time_in_millis) FROM stock_price_5min WHERE isin = ?1", nativeQuery = true)
     Optional<Long> findMaxTimeInMillisByIsin(String isin);
+
+    @Query(value = "SELECT DISTINCT isin FROM stock_price_5min WHERE time_in_millis < ?1", nativeQuery = true)
+    List<String> findDistinctIsinByTimeInMillisLessThan(Long cutoff);
+
+    @Modifying
+    @Query(value = "DELETE FROM stock_price_5min WHERE time_in_millis < ?1", nativeQuery = true)
+    int deleteByTimeInMillisLessThan(Long cutoff);
 }
