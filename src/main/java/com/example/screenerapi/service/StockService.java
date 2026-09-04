@@ -51,6 +51,9 @@ public class StockService {
     @Autowired
     private FilterStocks filterStocks;
 
+    @Autowired
+    private AdxService adxService;
+
     @Value("${external.api.url}")
     private String externalApiUrl;
 
@@ -880,6 +883,8 @@ public class StockService {
             List<StockPrice5Min> entities = new ArrayList<>(candles.length());
             
             // Process candles - API returns in reverse chronological order (latest first)
+            //so for ADX calculation need oldest candle first, hence processing from last index to first.
+            //for (int i = 0; i < candles.length(); i++) {
             for (int i = 0; i < candles.length(); i++) {
                 JSONArray candle = candles.getJSONArray(i);
                 Long timeInMillis = candle.getLong(0);
@@ -992,4 +997,20 @@ public class StockService {
             throw new RuntimeException("Error executing curl command: " + e.getMessage(), e);
         }
     }
+
+    public List<AdxService.AdxResult> getAdxValues (String stockName, Long time,int rows,
+        int period) {
+
+        period = (period <= 0 ) ? 14: period ;
+        List<StockPrice5Min> candles = getRecentCandles(stockName, time, rows + period);
+        log.info("stock:" + stockName + "; rows:" + rows + "; period:" + period + 
+            "; candles in datastore:" + candles.size());
+        
+        Collections.reverse(candles); // oldest first
+        List<AdxService.AdxResult> adxResults = adxService.calculateAdx(candles, period);
+        if (adxResults != null && adxResults.size() >0)
+            return adxResults;
+        return null;
+    }
+
 }

@@ -1,6 +1,8 @@
 package com.example.screenerapi.service;
 
 import com.example.screenerapi.entity.StockInfo;
+import com.example.screenerapi.service.AdxService.AdxResult;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -259,13 +261,18 @@ public class PriorityStockProcessor implements SmartLifecycle {
         if (stock.getIsin() == null || stock.getIsin().isBlank()) {
             throw new IllegalArgumentException("Stock identity is required");
         }
+        Long fetchTime = System.currentTimeMillis();
         stockService.subsequentFetchAndStoreCandles(stock.getDisplayName(), stock.getIsin(), "5",
-                System.currentTimeMillis(), externalApiUrl);
+                fetchTime, externalApiUrl);
         String name = stock.getDisplayName() == null ? stock.getSymbol() : stock.getDisplayName();
-        stockInfoService.updateLastDataFetch(stock.getIsin(), name, System.currentTimeMillis());
+        stockInfoService.updateLastDataFetch(stock.getIsin(), name, fetchTime);
         log.info("{} processed ISIN={} durationMs={}", priority, stock.getIsin() + ";" +
                 stock.getDisplayName(),
                 System.currentTimeMillis() - started);
+        List<AdxResult> adxResults =stockService.getAdxValues(stock.getDisplayName(), fetchTime, 110, 14);
+        
+        //Store the Adx results into DB.
+
     }
 
     private void addStocks(Map<String, ScanxStock> target, List<ScanxStock> stocks) {

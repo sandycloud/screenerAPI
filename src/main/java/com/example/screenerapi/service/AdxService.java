@@ -74,6 +74,7 @@ public class AdxService {
         return result;
     }
 
+    //latest ADX calculation that is working fine.
     public List<AdxResult> calculateAdx(List<StockPrice5Min> candles, int period) {
         if (candles == null || candles.size() < period + 1) return Collections.emptyList();
         List<Double> trList = new ArrayList<>();
