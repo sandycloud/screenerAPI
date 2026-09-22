@@ -49,6 +49,7 @@ public class ScanxClient {
             }
             String responseBody = response.body().string();
             log.info("response length :{}", responseBody.length());
+            log.debug("responseBody: {}",responseBody);
             response.close();
             //return parse(responseBody);
             return parseOld(responseBody);

@@ -21,6 +21,15 @@ public interface StockPrice5MinRepository extends JpaRepository<StockPrice5Min, 
     Optional<StockPrice5Min> findByTimeInMillisAndIsin(Long timeInMillis, String isin);
     Optional <StockPrice5Min> findByIsin (String isin);
 
+    @Query(value = "SELECT * FROM stock_price_5min "
+        + "WHERE isin = ?1 AND time_in_millis IN (?2)", nativeQuery = true)
+    List<StockPrice5Min> findByIsinAndTimeInMillisIn(String isin, List<Long> timeInMillis);
+
+    @Query(value = "SELECT COUNT(*) FROM stock_price_5min "
+        + "WHERE isin = ?1 AND (adx_value IS NULL OR plusdivalue IS NULL OR minusdivalue IS NULL)",
+        nativeQuery = true)
+    long countCandlesWithMissingAdxValues(String isin);
+
     @Query(value = "SELECT MAX(time_in_millis) FROM stock_price_5min WHERE isin = ?1", nativeQuery = true)
     Optional<Long> findMaxTimeInMillisByIsin(String isin);
 
