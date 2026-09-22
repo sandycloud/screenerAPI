@@ -1,1 +1,1 @@
-java -jar target/screenerAPI-0.0.1-SNAPSHOT.jar
+java -jar target/screenerAPI-0.0.1-SNAPSHOT.jar --scanx.auth=TEMP

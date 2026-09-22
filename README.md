@@ -12,18 +12,19 @@ This project provides REST APIs to:
 ## Tech Stack
 - Java
 - Spring Boot (Web, Data JPA)
-- SQLite
+- H2 DB server ( earlier SQLite )
 
 ## How to Run
-1. Build the project with Maven or Gradle.
-2. Start the application with the required auth tokens passed as command-line arguments so the values are not hardcoded in source:
+1. Create a H2 DB. We will use H2 DB in server mode (not embedded mode). First create it in "embedded" mode. login to Web console of H2 DB by setting it to "server" mode and we should be good to go. Make sure to save config as "server" mode if required, so that subsequent re-starts of DB start it in "server" mode. Check the documentation here : https://h2database.com/html/main.html .
+2. Clone java code from Git , Build the project with Maven or Gradle.
+3. Start the application with the required auth tokens passed as command-line arguments so the values are not hardcoded in source:
    - `./mvnw spring-boot:run -Dspring-boot.run.arguments="--scanx.auth=YOUR_SCANX_TOKEN,--adx.auth=YOUR_ADX_TOKEN"`
    - or `java -jar target/screenerAPI-0.0.1-SNAPSHOT.jar --scanx.auth=YOUR_SCANX_TOKEN --adx.auth=YOUR_ADX_TOKEN`
 
 Note: Use the above command with auth info only if connecting to new scanx url to retrieve momentum stock names. Because "dhan" broker has added security to the new url. you will need to create an account in Dhan. 
 If you use the older url to find momentum stocks then no need to supply auth info.
 
-3. Use the provided REST endpoints to interact with the API.
+4. Use the provided REST endpoints to interact with the API.
 
 > Do not commit real tokens to the repository. Keep them in your local environment or pass them as startup arguments.
 
@@ -32,12 +33,13 @@ If you use the older url to find momentum stocks then no need to supply auth inf
 - `GET /api/stock/adx` - Returns ADX, +DI, -DI for a stock.
 
 ## Background stock processors
-
+#TO DO need to update.
 The priority processors are disabled by default. Set `stock.processor.enabled=true` to enable them.
 They first run one minute after the next five-minute boundary. The high-priority processor fetches
 ScanX ADX uptrend/downtrend stocks and configured indices, then stores candles through the existing
 subsequent-fetch flow. The low-priority processor fetches unusual-volume stocks while high priority
 is idle and skips stocks whose `stock_info.timeAtLastDataFetch` is within the high-priority interval.
+After the priority price-processing work finishes, a separate ADX worker runs at the high-priority interval for stocks successfully updated in either priority path. It stores ADX, +DI, and -DI only where those values are missing and never overwrites existing indicator values.
 
 Important properties include `stock.processor.interval.minutes`,
 `stock.processor.low-priority.interval.minutes`, `scanx.api.url`, `nse_index`, and `bse_index`.

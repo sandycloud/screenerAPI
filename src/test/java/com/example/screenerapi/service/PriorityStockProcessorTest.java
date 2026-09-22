@@ -1,6 +1,7 @@
 package com.example.screenerapi.service;
 
 import com.example.screenerapi.entity.StockInfo;
+import com.example.screenerapi.repository.StockPrice5MinRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,8 +28,9 @@ class PriorityStockProcessorTest {
     private final ScanxClient scanxClient = mock(ScanxClient.class);
     private final StockService stockService = mock(StockService.class);
     private final StockInfoService stockInfoService = mock(StockInfoService.class);
+    private final StockPrice5MinRepository stockPriceRepository = mock(StockPrice5MinRepository.class);
     private final PriorityStockProcessor processor =
-            new PriorityStockProcessor(scanxClient, stockService, stockInfoService);
+            new PriorityStockProcessor(scanxClient, stockService, stockInfoService, stockPriceRepository);
 
     @AfterEach
     void stopProcessor() {
