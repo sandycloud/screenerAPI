@@ -12,6 +12,7 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -388,8 +389,45 @@ public class PriorityStockProcessor implements SmartLifecycle {
         if (!changed.isEmpty()) {
             stockPriceRepository.saveAll(changed);
         }
+        calculateAndPersistAverageVolume(isin);
         candles.clear();
         times.clear();
+    }
+
+    private void calculateAndPersistAverageVolume(String isin) {
+        List<StockPrice5Min> candles = stockPriceRepository.findRecentCandles(
+                isin, System.currentTimeMillis(), 120);
+        if (candles.isEmpty()) {
+            return;
+        }
+
+        Collections.reverse(candles);
+        long volumeSum = 0;
+        int validVolumeCount = 0;
+
+        for (int index = 0; index < candles.size(); index++) {
+            StockPrice5Min candle = candles.get(index);
+            Long volume = candle.getVolume();
+            if (volume != null) {
+                volumeSum += volume;
+                validVolumeCount++;
+            }
+
+            int windowStart = Math.max(0, index - 14);
+            if (windowStart > 0) {
+                Long expiredVolume = candles.get(windowStart - 1).getVolume();
+                if (expiredVolume != null) {
+                    volumeSum -= expiredVolume;
+                    validVolumeCount--;
+                }
+            }
+
+            candle.setAverageVolume(validVolumeCount == 0
+                    ? null
+                    : Math.round((double) volumeSum / validVolumeCount));
+        }
+
+        stockPriceRepository.saveAll(candles);
     }
 
     private boolean awaitPriorityFinished() {
