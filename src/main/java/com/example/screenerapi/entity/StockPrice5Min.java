@@ -36,7 +36,7 @@ public class StockPrice5Min {
     @Column( precision = 2)
     private Double minusDIValue;
 
-    @Column(nullable = true)
+    @Column(name = "AVERAGE_VOLUME", nullable = true)
     private Long averageVolume;
 
     @Column( precision = 2)

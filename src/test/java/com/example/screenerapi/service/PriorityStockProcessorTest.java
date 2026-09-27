@@ -1,10 +1,12 @@
 package com.example.screenerapi.service;
 
 import com.example.screenerapi.entity.StockInfo;
+import com.example.screenerapi.entity.StockPrice5Min;
 import com.example.screenerapi.repository.StockPrice5MinRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -14,9 +16,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -139,11 +143,47 @@ class PriorityStockProcessorTest {
         assertFalse(processor.isRunning());
     }
 
+    @Test
+    void calculatesTrailingAverageVolumeForEachCandle() throws Exception {
+        List<StockPrice5Min> candles = new ArrayList<>();
+        Long[] volumes = {10L, null, 30L, 40L, 50L, 60L, 70L, 80L,
+                90L, 100L, 110L, 120L, 130L, 140L, 150L, 160L};
+        for (int index = volumes.length - 1; index >= 0; index--) {
+            StockPrice5Min candle = new StockPrice5Min();
+            candle.setIsin("INE123");
+            candle.setTimeInMillis((long) index);
+            candle.setVolume(volumes[index]);
+            candles.add(candle);
+        }
+        when(stockPriceRepository.findRecentCandles(anyString(), anyLong(), eq(120)))
+                .thenReturn(candles);
+
+        invokeAverageVolume("INE123");
+
+        assertEquals(10L, candles.get(0).getAverageVolume());
+        assertEquals(10L, candles.get(1).getAverageVolume());
+        assertEquals(79L, candles.get(13).getAverageVolume());
+        assertEquals(84L, candles.get(14).getAverageVolume());
+        assertEquals(95L, candles.get(15).getAverageVolume());
+        verify(stockPriceRepository).saveAll(candles);
+    }
+
     private void invoke(String methodName) {
         try {
             Method method = PriorityStockProcessor.class.getDeclaredMethod(methodName);
             method.setAccessible(true);
             method.invoke(processor);
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
+    }
+
+    private void invokeAverageVolume(String isin) {
+        try {
+            Method method = PriorityStockProcessor.class
+                    .getDeclaredMethod("calculateAndPersistAverageVolume", String.class);
+            method.setAccessible(true);
+            method.invoke(processor, isin);
         } catch (Exception exception) {
             throw new AssertionError(exception);
         }
