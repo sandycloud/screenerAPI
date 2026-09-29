@@ -1,30 +1,50 @@
 package com.example.screenerapi.service;
 
+import com.example.screenerapi.dto.StockInfoResponseDto;
 import com.example.screenerapi.entity.StockInfo;
 import com.example.screenerapi.repository.StockInfoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class StockInfoService {
-    @Autowired
-    private StockInfoRepository stockInfoRepository;
+    private final StockInfoRepository stockInfoRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    public StockInfoService(StockInfoRepository stockInfoRepository) {
+        this.stockInfoRepository = stockInfoRepository;
+    }
+
     public StockInfo findByIsin(String isin) {
-        return stockInfoRepository.findByIsin(isin);
+        return stockInfoRepository.findByIsin(isin).orElse(null);
+    }
+
+    public List<StockInfoResponseDto> getAllStockInfo() {
+        return stockInfoRepository.findAll().stream()
+                .map(this::toResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    public Optional<StockInfoResponseDto> getStockInfoByIsin(String isin) {
+        return stockInfoRepository.findByIsin(isin).map(this::toResponseDto);
+    }
+
+    public List<StockInfoResponseDto> searchStockInfoByName(String name) {
+        return stockInfoRepository.findByNameContainingIgnoreCase(name).stream()
+                .map(this::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     public void updateLastDataFetch(String isin, String name, long fetchTime) {
-        StockInfo info = stockInfoRepository.findByIsin(isin);
-        if (info == null) {
-            info = new StockInfo();
+        StockInfo info = stockInfoRepository.findByIsin(isin).orElseGet(StockInfo::new);
+        if (info.getIsin() == null) {
             info.setIsin(isin);
         }
         if (name != null && !name.isBlank()) {
@@ -48,7 +68,7 @@ public class StockInfoService {
                     String isin = (String) obj.get("Isin");
                     String name = (String) obj.get("DispSym");
                     if (isin != null && name != null) {
-                        StockInfo existing = stockInfoRepository.findByIsin(isin);
+                        StockInfo existing = stockInfoRepository.findByIsin(isin).orElse(null);
                         if (existing != null) {
                             existing.setName(name);
                             existing.setSymbol((String) obj.get("Sym"));
@@ -66,5 +86,14 @@ public class StockInfoService {
                 }
             }
         }
+    }
+
+    private StockInfoResponseDto toResponseDto(StockInfo stockInfo) {
+        return new StockInfoResponseDto(
+                stockInfo.getId(),
+                stockInfo.getIsin(),
+                stockInfo.getName(),
+                stockInfo.getTimeAtLastDataFetch(),
+                stockInfo.getSymbol());
     }
 }
