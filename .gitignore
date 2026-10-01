@@ -7,3 +7,7 @@ stockdata.db
 ./run.sh
 ./*.sh
 .idea/vcs.xml
+
+logs/
+target-old/
+target-old*/

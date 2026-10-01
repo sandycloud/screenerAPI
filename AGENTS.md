@@ -13,3 +13,6 @@
 ## Avoid
 - Don't use `@Autowired` on fields.
 - Don't add logic to controllers — delegate to services.
+
+## General
+- Do not make any assumptions.
