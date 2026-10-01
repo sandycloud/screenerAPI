@@ -3,8 +3,10 @@ package com.example.screenerapi.service;
 import com.example.screenerapi.dto.StockInfoResponseDto;
 import com.example.screenerapi.entity.StockInfo;
 import com.example.screenerapi.repository.StockInfoRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
@@ -42,9 +44,11 @@ public class StockInfoService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public void updateLastDataFetch(String isin, String name, long fetchTime) {
-        StockInfo info = stockInfoRepository.findByIsin(isin).orElseGet(StockInfo::new);
-        if (info.getIsin() == null) {
+        StockInfo info = stockInfoRepository.findByIsin(isin).orElse(null);
+        if (info == null) {
+            info = new StockInfo();
             info.setIsin(isin);
         }
         if (name != null && !name.isBlank()) {
@@ -53,7 +57,22 @@ public class StockInfoService {
             info.setName(isin);
         }
         info.setTimeAtLastDataFetch(String.valueOf(fetchTime));
-        stockInfoRepository.save(info);
+
+        try {
+            stockInfoRepository.saveAndFlush(info);
+        } catch (DataIntegrityViolationException ex) {
+            StockInfo existing = stockInfoRepository.findByIsin(isin).orElse(null);
+            if (existing == null) {
+                throw ex;
+            }
+            if (name != null && !name.isBlank()) {
+                existing.setName(name);
+            } else if (existing.getName() == null) {
+                existing.setName(isin);
+            }
+            existing.setTimeAtLastDataFetch(String.valueOf(fetchTime));
+            stockInfoRepository.save(existing);
+        }
     }
 
     public void fetchAndStoreStockInfo(String externalApiUrl, Map<String, Object> payload) {
@@ -73,14 +92,22 @@ public class StockInfoService {
                             existing.setName(name);
                             existing.setSymbol((String) obj.get("Sym"));
                             stockInfoRepository.save(existing);
-                            existing = null;
                         } else {
                             StockInfo info = new StockInfo();
                             info.setIsin(isin);
                             info.setName(name);
                             info.setSymbol((String) obj.get("Sym"));
-                            stockInfoRepository.save(info);
-                            info = null;
+                            try {
+                                stockInfoRepository.saveAndFlush(info);
+                            } catch (DataIntegrityViolationException ex) {
+                                StockInfo fresh = stockInfoRepository.findByIsin(isin).orElse(null);
+                                if (fresh == null) {
+                                    throw ex;
+                                }
+                                fresh.setName(name);
+                                fresh.setSymbol((String) obj.get("Sym"));
+                                stockInfoRepository.save(fresh);
+                            }
                         }
                     }
                 }
