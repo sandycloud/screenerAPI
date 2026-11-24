@@ -882,7 +882,7 @@ public class StockService {
             // Use ArrayList with initial capacity for better memory efficiency
             List<StockPrice5Min> entities = new ArrayList<>(candles.length());
             
-            // Process candles - API returns in reverse chronological order (latest first)
+            // Process candles - API returns in REVERSE chronological order (latest first)
             //so for ADX calculation need oldest candle first, hence processing from last index to first.
             //for (int i = 0; i < candles.length(); i++) {
             for (int i = 0; i < candles.length(); i++) {
@@ -895,7 +895,9 @@ public class StockService {
                 }
 
                 if (timeInMillis < maxTimeInMillis) {
-                    continue;
+                    //TODO
+                    // Should we do break here? what is the point in looping further? Check later !! improves perf.
+                    continue; 
                 }
 
                 // Upsert: find existing or create new
