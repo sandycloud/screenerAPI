@@ -45,30 +45,30 @@ public class PriorityStockProcessor implements SmartLifecycle {
     private String externalApiUrl;
     @Value("${scanx.api.url:https://scanx-analytics.dhan.co/customscan/v2/fetchdt}")
     private String scanxUrl;
-    
-    @Value("${adx.uptrend5Min.request.body:}") //this is for old URL( need to use old payload structure)
+
+    @Value("${adx.uptrend5Min.request.body:}") // this is for old URL( need to use old payload structure)
     private String uptrendRequest;
 
-    @Value("${adx.downtrend5Min.request.body:}")//this is for old URL( need to use old payload structure)
+    @Value("${adx.downtrend5Min.request.body:}") // this is for old URL( need to use old payload structure)
     private String downtrendRequest;
 
-    @Value("${scanx.uptrend.request.body:}") //this is for new URL( need to use new payload structure)
+    @Value("${scanx.uptrend.request.body:}") // this is for new URL( need to use new payload structure)
     private String uptrendRequest_new;
 
-    @Value("${scanx.downtrend.request.body:}") //this is for new URL( need to use new payload structure)
+    @Value("${scanx.downtrend.request.body:}") // this is for new URL( need to use new payload structure)
     private String downtrendRequest_new;
 
     @Value("${scanx.use.url:}")
-    private String useOldOrNewUrl ;
+    private String useOldOrNewUrl;
 
     @Value("${scanx.unusual-volume.request.body:}")
     private String unusualVolumeRequest_new;
 
     @Value("${adx.highvolume.request.body:}")
-    private String unusualVolumeRequest ;
+    private String unusualVolumeRequest;
 
     @Value("${adx.highvolume.request.bodyPg2:}")
-    private String unusualVolumeRequestPg2 ;
+    private String unusualVolumeRequestPg2;
 
     @Value("${stock.processor.interval.minutes:5}")
     private long intervalMinutes;
@@ -90,8 +90,8 @@ public class PriorityStockProcessor implements SmartLifecycle {
     private final Map<String, ScanxStock> stocksPendingAdx = new ConcurrentHashMap<>();
 
     public PriorityStockProcessor(ScanxClient scanxClient, StockService stockService,
-                                  StockInfoService stockInfoService,
-                                  StockPrice5MinRepository stockPriceRepository) {
+            StockInfoService stockInfoService,
+            StockPrice5MinRepository stockPriceRepository) {
         this.scanxClient = scanxClient;
         this.stockService = stockService;
         this.stockInfoService = stockInfoService;
@@ -108,13 +108,13 @@ public class PriorityStockProcessor implements SmartLifecycle {
         highPriorityTask = executor.scheduleAtFixedRate(this::runHighPriority, initialDelay,
                 Math.max(1, intervalMinutes) * 60, TimeUnit.SECONDS);
         if ("one-pass".equalsIgnoreCase(lowPriorityMode)) {
-            lowPriorityTask = executor.schedule(this::runLowPriority, initialDelay +2, TimeUnit.SECONDS);
+            lowPriorityTask = executor.schedule(this::runLowPriority, initialDelay + 2, TimeUnit.SECONDS);
         } else {
-            lowPriorityTask = executor.scheduleAtFixedRate(this::runLowPriority, initialDelay +2,
+            lowPriorityTask = executor.scheduleAtFixedRate(this::runLowPriority, initialDelay + 2,
                     Math.max(1, lowPriorityIntervalMinutes) * 60, TimeUnit.SECONDS);
         }
         adxTask = executor.scheduleAtFixedRate(this::runAdx, initialDelay + 5,
-            Math.max(1, intervalMinutes/3) * 60, TimeUnit.SECONDS);
+                Math.max(1, intervalMinutes / 3) * 60, TimeUnit.SECONDS);
         log.info("Processor scheduler enabled; first cycle in {} seconds", initialDelay);
     }
 
@@ -122,12 +122,12 @@ public class PriorityStockProcessor implements SmartLifecycle {
         Instant now = Instant.now();
         long epochMinutes = now.getEpochSecond() / 60;
         long nextBoundary = ((epochMinutes / 5) + 1) * 5;
-        double boundarytime = (nextBoundary +0.4) * 60;
-        
+        double boundarytime = (nextBoundary + 0.4) * 60;
+
         double currTime = now.getEpochSecond();
-        log.info("calculating init delay : minutes:{}; seconds:{}; {}", nextBoundary, 
-            boundarytime, currTime);
-        return Math.max(0, ( (nextBoundary * 60)+ 3 ) - now.getEpochSecond() );
+        log.info("calculating init delay : minutes:{}; seconds:{}; {}", nextBoundary,
+                boundarytime, currTime);
+        return Math.max(0, ((nextBoundary * 60) + 3) - now.getEpochSecond());
     }
 
     private void runHighPriority() {
@@ -147,15 +147,19 @@ public class PriorityStockProcessor implements SmartLifecycle {
         long started = System.currentTimeMillis();
         log.info("------------------------------------");
         log.info("HIGH Priority cycle started");
+        Map<String, ScanxStock> stocks = new LinkedHashMap<>();
         try {
-            Map<String, ScanxStock> stocks = new LinkedHashMap<>();
-            if (useOldOrNewUrl.equalsIgnoreCase("old")){
+            if (useOldOrNewUrl.equalsIgnoreCase("old")) {
                 addStocks(stocks, scanxClient.fetch(scanxUrl, uptrendRequest));
                 addStocks(stocks, scanxClient.fetch(scanxUrl, downtrendRequest));
-            }else {
+            } else {
                 addStocks(stocks, scanxClient.fetch(scanxUrl, uptrendRequest_new));
                 addStocks(stocks, scanxClient.fetch(scanxUrl, downtrendRequest_new));
             }
+        } catch (Exception exception) {
+            log.error("HIGH Priority fetch stocks list failed", exception);
+        }
+        try {
             addIndices(stocks);
             ProcessingCounts counts = processHighPriorityStocks(stocks.values());
             log.info("HIGH Priority cycle finished: candidates={}, processed={}, failed={}, durationMs={}",
@@ -172,6 +176,7 @@ public class PriorityStockProcessor implements SmartLifecycle {
             } finally {
                 coordinationLock.unlock();
             }
+            stocks.clear();
         }
     }
 
@@ -196,70 +201,81 @@ public class PriorityStockProcessor implements SmartLifecycle {
             log.info("high priority thread is running, so postpone low priority processing.");
             return;
         }
-        /*coordinationLock.lock();
+        /*
+         * coordinationLock.lock();
+         * try {
+         * if (!running || highPriorityRunning) {
+         * return;
+         * }
+         * lowPriorityRunning = true;
+         * } finally {
+         * coordinationLock.unlock();
+         * }
+         */
+        /*
+         * long started = System.currentTimeMillis();
+         * log.info("LOW Priority cycle started");
+         * ProcessingCounts counts = new ProcessingCounts();
+         */
         try {
-            if (!running || highPriorityRunning) {
-                return;
-            }
-            lowPriorityRunning = true;
-        } finally {
-            coordinationLock.unlock();
-        }*/
-        /*long started = System.currentTimeMillis();
-        log.info("LOW Priority cycle started");
-        ProcessingCounts counts = new ProcessingCounts();*/
-        try {
-            /*List<ScanxStock> stocks = scanxClient.fetch(scanxUrl, unusualVolumeRequest);
-            for (ScanxStock stock : stocks) {
-                if (!awaitPriorityFinished()) {
-                    log.info("LOW Priority paused before next stock");
-                    break;
-                }
-                processingGate.lock();
-                try {
-                    if (!isPriorityIdle()) {
-                        log.info("LOW Priority paused before processing ISIN={}", stock.getIsin());
-                        break;
-                    }
-                    StockInfo info = stockInfoService.findByIsin(stock.getIsin());
-                    if (recentlyProcessed(info)) {
-                        counts.skipped++;
-                        log.info("LOW Priority skipped recently processed ISIN={}", stock.getIsin() + ";" 
-                            + stock.getDisplayName());
-                        continue;
-                    }
-                    try {
-                        processStock(stock, "LOW Priority");
-                        stocksPendingAdx.put(stock.getIsin(), stock);
-                        counts.processed++;
-                    } catch (Exception exception) {
-                        counts.failed++;
-                        log.error("LOW Priority failed for ISIN={}", stock.getIsin(), exception);
-                    }
-                } finally {
-                    processingGate.unlock();
-                }
-            }
-            log.info("LOW Priority cycle finished: candidates={}, processed={}, skipped={}, failed={}, durationMs={}",
-                    stocks.size(), counts.processed, counts.skipped, counts.failed,
-                    System.currentTimeMillis() - started);*/
+            /*
+             * List<ScanxStock> stocks = scanxClient.fetch(scanxUrl, unusualVolumeRequest);
+             * for (ScanxStock stock : stocks) {
+             * if (!awaitPriorityFinished()) {
+             * log.info("LOW Priority paused before next stock");
+             * break;
+             * }
+             * processingGate.lock();
+             * try {
+             * if (!isPriorityIdle()) {
+             * log.info("LOW Priority paused before processing ISIN={}", stock.getIsin());
+             * break;
+             * }
+             * StockInfo info = stockInfoService.findByIsin(stock.getIsin());
+             * if (recentlyProcessed(info)) {
+             * counts.skipped++;
+             * log.info("LOW Priority skipped recently processed ISIN={}", stock.getIsin() +
+             * ";"
+             * + stock.getDisplayName());
+             * continue;
+             * }
+             * try {
+             * processStock(stock, "LOW Priority");
+             * stocksPendingAdx.put(stock.getIsin(), stock);
+             * counts.processed++;
+             * } catch (Exception exception) {
+             * counts.failed++;
+             * log.error("LOW Priority failed for ISIN={}", stock.getIsin(), exception);
+             * }
+             * } finally {
+             * processingGate.unlock();
+             * }
+             * }
+             * log.
+             * info("LOW Priority cycle finished: candidates={}, processed={}, skipped={}, failed={}, durationMs={}"
+             * ,
+             * stocks.size(), counts.processed, counts.skipped, counts.failed,
+             * System.currentTimeMillis() - started);
+             */
             log.info("LOW Priority cycle started");
             processLowPriorityStocks(unusualVolumeRequest);
             processLowPriorityStocks(unusualVolumeRequestPg2);
         } catch (Exception exception) {
             log.error("LOW Priority cycle failed", exception);
         } finally {
-            /*coordinationLock.lock();
-            try {
-                lowPriorityRunning = false;
-                priorityFinished.signalAll();
-            } finally {
-                coordinationLock.unlock();
-            }*/
+            /*
+             * coordinationLock.lock();
+             * try {
+             * lowPriorityRunning = false;
+             * priorityFinished.signalAll();
+             * } finally {
+             * coordinationLock.unlock();
+             * }
+             */
         }
     }
 
-    private void processLowPriorityStocks(String requestBody){
+    private void processLowPriorityStocks(String requestBody) {
         long started = System.currentTimeMillis();
         ProcessingCounts counts = new ProcessingCounts();
         List<ScanxStock> stocks = scanxClient.fetch(scanxUrl, requestBody);
@@ -277,8 +293,8 @@ public class PriorityStockProcessor implements SmartLifecycle {
                 StockInfo info = stockInfoService.findByIsin(stock.getIsin());
                 if (recentlyProcessed(info)) {
                     counts.skipped++;
-                    log.info("LOW Priority skipped recently processed ISIN={}", stock.getIsin() + ";" 
-                        + stock.getDisplayName());
+                    log.info("LOW Priority skipped recently processed ISIN={}", stock.getIsin() + ";"
+                            + stock.getDisplayName());
                     continue;
                 }
                 try {
@@ -300,16 +316,20 @@ public class PriorityStockProcessor implements SmartLifecycle {
 
     private void runAdx() {
         log.info("running adx processing");
-        /* if (!awaitAllPriorityFinished()) {
-            log.info("adx processing return since some other priority thread running.");
-            return;
-        }
-
-        processingGate.lock(); */
+        /*
+         * if (!awaitAllPriorityFinished()) {
+         * log.info("adx processing return since some other priority thread running.");
+         * return;
+         * }
+         * 
+         * processingGate.lock();
+         */
         try {
-            /* if (!isPriorityIdle()) {
-                return;
-            } */
+            /*
+             * if (!isPriorityIdle()) {
+             * return;
+             * }
+             */
             Map<String, ScanxStock> stocksToProcess = new LinkedHashMap<>(stocksPendingAdx);
             stocksPendingAdx.keySet().removeAll(stocksToProcess.keySet());
             for (ScanxStock stock : stocksToProcess.values()) {
@@ -322,7 +342,7 @@ public class PriorityStockProcessor implements SmartLifecycle {
             stocksToProcess.clear();
             stocksToProcess = null;
         } finally {
-            //processingGate.unlock();
+            // processingGate.unlock();
         }
     }
 
@@ -438,7 +458,7 @@ public class PriorityStockProcessor implements SmartLifecycle {
                 try {
                     priorityFinished.await();
                 } catch (InterruptedException exception) {
-                    log.info("exception when calling await() in LowPriority; ",exception.getMessage());
+                    log.info("exception when calling await() in LowPriority; ", exception.getMessage());
                     Thread.currentThread().interrupt();
                     return false;
                 }
@@ -545,12 +565,23 @@ public class PriorityStockProcessor implements SmartLifecycle {
                 log.warn("Processor executor did not terminate within shutdown timeout");
             }
         } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt() ;
+            Thread.currentThread().interrupt();
             log.warn("Interrupted while stopping processor executor");
         }
     }
 
-    @Override public boolean isRunning() { return running; }
-    @Override public int getPhase() { return Integer.MAX_VALUE; }
-    @Override public boolean isAutoStartup() { return true; }
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
+
+    @Override
+    public int getPhase() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public boolean isAutoStartup() {
+        return true;
+    }
 }
